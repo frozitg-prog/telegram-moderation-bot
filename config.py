@@ -16,6 +16,6 @@ DEFAULT_SETTINGS = {
     "log_chat": None,
 }
 
-BAN_WORDS = []
-MUTE_WORDS = []
+BAN_WORD = "200"
+MUTE_WORD = "тихо"
 WARN_LIMIT = 3
