@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+moderation.db
+bot.log
+.env
