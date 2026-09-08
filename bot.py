@@ -11,7 +11,7 @@ from aiogram.enums import ChatMemberStatus, ParseMode
 from datetime import datetime, timedelta
 
 import database as db
-from config import BOT_TOKEN, DEFAULT_SETTINGS, WARN_LIMIT
+from config import BOT_TOKEN, DEFAULT_SETTINGS, WARN_LIMIT, BAN_WORD, MUTE_WORD
 
 PROXY_URL = os.getenv("PROXY_URL", "")
 
@@ -45,6 +45,10 @@ async def log_action(chat_id, text):
 async def cmd_start(message: Message):
     await message.answer(
         "Привет! Я бот-модератор.\n\n"
+        "Главная фича:\n"
+        "Ответь на сообщение человека и напиши слово бана или мута:\n"
+        f"  • Бан: <b>{BAN_WORD}</b> (сменить: /setbanword)\n"
+        f"  • Мут: <b>{MUTE_WORD}</b> (сменить: /setmuteword)\n\n"
         "Команды:\n"
         "/ban - забанить\n"
         "/mute - замутить\n"
@@ -53,12 +57,7 @@ async def cmd_start(message: Message):
         "/warn - выдать варн\n"
         "/resetwarns - сбросить варны\n"
         "/warnings - кол-во варнов\n"
-        "/addbanword - добавить слово для бана\n"
-        "/delbanword - удалить слово для бана\n"
-        "/addmuteword - добавить слово для мута\n"
-        "/delmuteword - удалить слово для мута\n"
-        "/banwords - список слов бана\n"
-        "/mutewords - список слов мута\n"
+        "/words - узнать слова команд\n"
         "/setwelcome - настроить приветствие\n"
         "/setlog - канал для логов\n"
         "/antiflood - вкл/выкл антифлуд\n"
@@ -198,70 +197,42 @@ async def cmd_warnings(message: Message):
     await message.answer(f"Варнов у {target.full_name}: {count}/{limit}")
 
 
-@router.message(Command("addbanword"))
-async def cmd_add_ban_word(message: Message):
+@router.message(Command("setbanword"))
+async def cmd_set_ban_word(message: Message):
     if not await is_admin(message.chat.id, message.from_user.id):
         return await message.answer("Нет прав.")
     args = message.text.split(maxsplit=1)
     if len(args) < 2:
-        return await message.answer("Использование: /addbanword слово")
+        return await message.answer("Использование: /setbanword слово")
     word = args[1].strip().lower()
-    await db.add_ban_word(message.chat.id, word)
-    await message.answer(f"Слово для бана добавлено: <b>{word}</b>")
+    await db.set_setting(message.chat.id, "ban_word", word)
+    await message.answer(f"Слово для бана установлено: <b>{word}</b>")
 
 
-@router.message(Command("delbanword"))
-async def cmd_del_ban_word(message: Message):
+@router.message(Command("setmuteword"))
+async def cmd_set_mute_word(message: Message):
     if not await is_admin(message.chat.id, message.from_user.id):
         return await message.answer("Нет прав.")
     args = message.text.split(maxsplit=1)
     if len(args) < 2:
-        return await message.answer("Использование: /delbanword слово")
+        return await message.answer("Использование: /setmuteword слово")
     word = args[1].strip().lower()
-    await db.remove_ban_word(message.chat.id, word)
-    await message.answer(f"Слово для бана удалено: <b>{word}</b>")
+    await db.set_setting(message.chat.id, "mute_word", word)
+    await message.answer(f"Слово для мута установлено: <b>{word}</b>")
 
 
-@router.message(Command("addmuteword"))
-async def cmd_add_mute_word(message: Message):
+@router.message(Command("words"))
+async def cmd_words(message: Message):
     if not await is_admin(message.chat.id, message.from_user.id):
         return await message.answer("Нет прав.")
-    args = message.text.split(maxsplit=1)
-    if len(args) < 2:
-        return await message.answer("Использование: /addmuteword слово")
-    word = args[1].strip().lower()
-    await db.add_mute_word(message.chat.id, word)
-    await message.answer(f"Слово для мута добавлено: <b>{word}</b>")
-
-
-@router.message(Command("delmuteword"))
-async def cmd_del_mute_word(message: Message):
-    if not await is_admin(message.chat.id, message.from_user.id):
-        return await message.answer("Нет прав.")
-    args = message.text.split(maxsplit=1)
-    if len(args) < 2:
-        return await message.answer("Использование: /delmuteword слово")
-    word = args[1].strip().lower()
-    await db.remove_mute_word(message.chat.id, word)
-    await message.answer(f"Слово для мута удалено: <b>{word}</b>")
-
-
-@router.message(Command("banwords"))
-async def cmd_ban_words(message: Message):
-    words = await db.get_ban_words(message.chat.id)
-    if not words:
-        return await message.answer("Список слов для бана пуст.")
-    text = "Слова для бана:\n" + "\n".join(f"• <b>{w}</b>" for w in words)
-    await message.answer(text)
-
-
-@router.message(Command("mutewords"))
-async def cmd_mute_words(message: Message):
-    words = await db.get_mute_words(message.chat.id)
-    if not words:
-        return await message.answer("Список слов для мута пуст.")
-    text = "Слова для мута:\n" + "\n".join(f"• <b>{w}</b>" for w in words)
-    await message.answer(text)
+    ban_word = await db.get_setting(message.chat.id, "ban_word", BAN_WORD)
+    mute_word = await db.get_setting(message.chat.id, "mute_word", MUTE_WORD)
+    await message.answer(
+        f"Слова команд:\n"
+        f"• Бан: <b>{ban_word}</b> (ответь на сообщение и напиши слово)\n"
+        f"• Мут: <b>{mute_word}</b> (ответь на сообщение и напиши слово)\n\n"
+        f"Изменить: /setbanword или /setmuteword"
+    )
 
 
 @router.message(Command("setwelcome"))
@@ -310,14 +281,14 @@ async def cmd_settings(message: Message):
         return await message.answer("Нет прав.")
     welcome = await db.get_setting(message.chat.id, "welcome_enabled", "True")
     antiflood = await db.get_setting(message.chat.id, "antiflood_enabled", "True")
-    ban_words = await db.get_ban_words(message.chat.id)
-    mute_words = await db.get_mute_words(message.chat.id)
+    ban_word = await db.get_setting(message.chat.id, "ban_word", BAN_WORD)
+    mute_word = await db.get_setting(message.chat.id, "mute_word", MUTE_WORD)
     text = (
         f"Настройки <b>{message.chat.title}</b>:\n\n"
         f"Приветствие: {'вкл' if welcome == 'True' else 'выкл'}\n"
         f"Антифлуд: {'вкл' if antiflood == 'True' else 'выкл'}\n"
-        f"Слов для бана: {len(ban_words)}\n"
-        f"Слов для мута: {len(mute_words)}"
+        f"Слово бана: <b>{ban_word}</b>\n"
+        f"Слово мута: <b>{mute_word}</b>"
     )
     await message.answer(text)
 
@@ -345,44 +316,55 @@ async def on_message(message: Message):
         return
     chat_id = message.chat.id
     user_id = message.from_user.id
+    text = message.text.strip().lower()
+
+    ban_word = await db.get_setting(chat_id, "ban_word", BAN_WORD)
+    mute_word = await db.get_setting(chat_id, "mute_word", MUTE_WORD)
+
+    if message.reply_to_message and text == ban_word:
+        if not await is_admin(chat_id, user_id):
+            return
+        target = message.reply_to_message.from_user
+        if target.id == user_id:
+            return await message.answer("Нельзя банить себя.")
+        try:
+            await bot.ban_chat_member(chat_id, target.id)
+            await log_action(chat_id,
+                f"В <b>{message.chat.title}</b>\n"
+                f"Бан по слову: {target.full_name} (ID: {target.id})\n"
+                f"Админ: {message.from_user.full_name}"
+            )
+            await message.answer(f"Пользователь {target.full_name} забанен.")
+            await message.delete()
+        except Exception as e:
+            await message.answer(f"Ошибка: {e}")
+        return
+
+    if message.reply_to_message and text == mute_word:
+        if not await is_admin(chat_id, user_id):
+            return
+        target = message.reply_to_message.from_user
+        if target.id == user_id:
+            return await message.answer("Нельзя мутить себя.")
+        try:
+            until = datetime.now() + timedelta(hours=1)
+            permissions = message.chat.permissions.model_copy()
+            permissions.can_send_messages = False
+            await bot.restrict_chat_member(chat_id, target.id, permissions, until_date=until)
+            await log_action(chat_id,
+                f"В <b>{message.chat.title}</b>\n"
+                f"Мут по слову: {target.full_name} (ID: {target.id})\n"
+                f"Длительность: 1 час\n"
+                f"Админ: {message.from_user.full_name}"
+            )
+            await message.answer(f"Пользователь {target.full_name} замучен на 1 час.")
+            await message.delete()
+        except Exception as e:
+            await message.answer(f"Ошибка: {e}")
+        return
 
     if await is_admin(chat_id, user_id):
         return
-
-    text = message.text.lower()
-
-    ban_words = await db.get_ban_words(chat_id)
-    for word in ban_words:
-        if word in text:
-            try:
-                await bot.ban_chat_member(chat_id, user_id)
-                await log_action(chat_id,
-                    f"В <b>{message.chat.title}</b>\n"
-                    f"Авто-бан: {message.from_user.full_name} (ID: {user_id})\n"
-                    f"Причина: слово \"{word}\""
-                )
-                await message.delete()
-            except Exception:
-                pass
-            return
-
-    mute_words = await db.get_mute_words(chat_id)
-    for word in mute_words:
-        if word in text:
-            try:
-                until = datetime.now() + timedelta(hours=1)
-                permissions = message.chat.permissions.model_copy()
-                permissions.can_send_messages = False
-                await bot.restrict_chat_member(chat_id, user_id, permissions, until_date=until)
-                await log_action(chat_id,
-                    f"В <b>{message.chat.title}</b>\n"
-                    f"Авто-мут: {message.from_user.full_name} (ID: {user_id})\n"
-                    f"Причина: слово \"{word}\""
-                )
-                await message.delete()
-            except Exception:
-                pass
-            return
 
     antiflood = await db.get_setting(chat_id, "antiflood_enabled", "True")
     if antiflood == "True":
